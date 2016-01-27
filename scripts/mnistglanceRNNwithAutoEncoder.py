@@ -25,6 +25,7 @@ from keras.layers.recurrent import SimpleRNN, LSTM
 from keras.optimizers import RMSprop
 from keras.utils import np_utils
 
+from keras.models import model_from_json
 import json
 
 
@@ -36,11 +37,26 @@ def im2Window(image,wSize):
     [ output.append(np.ndarray.flatten(image[y:y+wSize,x:x+wSize]))  for y in range(0,ydim) for x in range(0,xdim)]
     return np.array(output)
 
+def autoEncode(image,wSize,model):
+    xdim    = image.shape[1] - wSize + 1
+    ydim    = image.shape[0] - wSize + 1
+    #numWins = xdim*ydim
+    output  = []
+    [ output.append(model.predict(np.ndarray.flatten(image[y:y+wSize,x:x+wSize])))  for y in range(0,ydim) for x in range(0,xdim)]
+    return np.array(output)
+    
+def loadThatModel(folder):
+    with open(folder+"my_model_architecture.json",'rb') as f:
+        #json_string     = json.load(f)
+        json_string     = f.read()
+    model = model_from_json(json_string)
+    model.load_weights(folder+"my_model_weights.h5")
+    return model
+
 batch_size      = 32
 nb_classes      = 10
-nb_epochs       = 5
+nb_epochs       = 200
 hidden_units    = 100
-repSize         = 20
 wSize           = 10
 
 learning_rate   = 1e-6
@@ -49,27 +65,18 @@ clip_norm       = 1.0
 # the data, shuffled and split between train and test sets
 (X_train_raw, y_train), (X_test_raw, y_test) = mnist.load_data()
 
-print("X_train_raw shape: ", X_train_raw.shape)
-del y_train
-del y_test
+cutoff          = 1000
+X_train_raw     = X_train_raw[:cutoff]
+X_test_raw      = X_test_raw[:cutoff]
+y_train         = y_train[:cutoff]
+y_test          = y_test[:cutoff]
+
+
 
 X_train  = []
 X_test   = []
-[X_train.append(im2Window(image,wSize)) for image in X_train_raw[:1000]]
-[X_test.append(im2Window(image,wSize)) for image in X_test_raw[:1000]]
-
-del X_train_raw
-del X_test_raw
-
-Xtrain2 = []
-Xtest2  = []
-for i in range(0,len(X_train)):
-    for j in range(0,len(X_train[i])):
-        Xtrain2.append(X_train[i][j])
-        Xtest2.append(X_test[i][j])
-        
-X_train     = Xtrain2
-X_test      = Xtest2
+[X_train.append(im2Window(image,wSize)) for image in X_train_raw]
+[X_test.append(im2Window(image,wSize)) for image in X_test_raw]
 X_train     = np.array(X_train)
 X_test      = np.array(X_test)
 
@@ -84,46 +91,33 @@ print(X_train.shape[0], 'train samples')
 print(X_test.shape[0], 'test samples')
 
 # convert class vectors to binary class matrices
-#Y_train = np_utils.to_categorical(y_train, nb_classes)
-#Y_test = np_utils.to_categorical(y_test, nb_classes)
+Y_train = np_utils.to_categorical(y_train, nb_classes)
+Y_test = np_utils.to_categorical(y_test, nb_classes)
 
-inshape     = X_train.shape[1:]
-outshape    = X_train.shape[1]
+
+
+autoencoder     = loadThatModel("../")
+
 
 print('Evaluate IRNN...')
 model = Sequential()
-model.add(Dense(hidden_units,input_shape=inshape))
-model.add(Activation('relu'))
-model.add(Dense(repSize))
-model.add(Activation('relu'))
-model.add(Dense(outshape))
-
+model.add(SimpleRNN(output_dim=hidden_units,
+                    init=lambda shape: normal(shape, scale=0.001),
+                    inner_init=lambda shape: identity(shape, scale=1.0),
+                    activation='relu', input_shape=X_train.shape[1:]))
+model.add(Dense(nb_classes))
+model.add(Activation('softmax'))
 rmsprop = RMSprop(lr=learning_rate)
-model.compile(loss='mean_squared_error', optimizer=rmsprop)
+model.compile(loss='categorical_crossentropy', optimizer=rmsprop)
 
-model.fit(X_train, X_train, batch_size=batch_size, nb_epoch=nb_epochs,
-          show_accuracy=True, verbose=1, validation_data=(X_test, X_test))
+model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epochs,
+          show_accuracy=True, verbose=1, validation_data=(X_test, Y_test))
 
-scores = model.evaluate(X_test, X_test, show_accuracy=True, verbose=0)
+scores = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
 print('IRNN test score:', scores[0])
 print('IRNN test accuracy:', scores[1])
 
-del X_train
 
-model2 = Sequential()
-model2.add(Dense(hidden_units,input_shape=inshape))
-model2.add(Activation('relu'))
-model2.add(Dense(repSize))
-rmsprop = RMSprop(lr=learning_rate)
-model2.compile(loss='mean_squared_error', optimizer=rmsprop)
-
-for layernum in range(0,len(model2.layers)):
-    model2.layers[layernum].set_weights(model.layers[layernum].get_weights())    
-    
-jsonstring  = model2.to_json()
-with open("../my_model_architecture.json",'wb') as f:
-    f.write(jsonstring)
-model2.save_weights("../my_model_weights.h5")
 
 
 
