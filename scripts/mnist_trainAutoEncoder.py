@@ -38,7 +38,7 @@ def im2Window(image,wSize):
 
 batch_size      = 32
 nb_classes      = 10
-nb_epochs       = 5
+nb_epochs       = 2
 hidden_units    = 100
 repSize         = 20
 wSize           = 10
@@ -50,13 +50,14 @@ clip_norm       = 1.0
 (X_train_raw, y_train), (X_test_raw, y_test) = mnist.load_data()
 
 print("X_train_raw shape: ", X_train_raw.shape)
+print("X_test_raw shape: ", X_test_raw.shape)
 del y_train
 del y_test
 
 X_train  = []
 X_test   = []
-[X_train.append(im2Window(image,wSize)) for image in X_train_raw[:1000]]
-[X_test.append(im2Window(image,wSize)) for image in X_test_raw[:1000]]
+[X_train.append(im2Window(image,wSize)) for image in X_train_raw]
+[X_test.append(im2Window(image,wSize)) for image in X_test_raw]
 
 del X_train_raw
 del X_test_raw
@@ -66,7 +67,8 @@ Xtest2  = []
 for i in range(0,len(X_train)):
     for j in range(0,len(X_train[i])):
         Xtrain2.append(X_train[i][j])
-        Xtest2.append(X_test[i][j])
+        if i < len(X_test):
+            Xtest2.append(X_test[i][j])
         
 X_train     = Xtrain2
 X_test      = Xtest2
@@ -121,9 +123,9 @@ for layernum in range(0,len(model2.layers)):
     model2.layers[layernum].set_weights(model.layers[layernum].get_weights())    
     
 jsonstring  = model2.to_json()
-with open("../my_model_architecture.json",'wb') as f:
+with open("../autoEncoder.json",'wb') as f:
     f.write(jsonstring)
-model2.save_weights("../my_model_weights.h5")
+model2.save_weights("../autoEncoder.h5")
 
 
 
