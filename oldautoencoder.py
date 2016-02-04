@@ -19,9 +19,8 @@ np.random.seed(1337)  # for reproducibility
 
 from keras.datasets import mnist
 from keras.models import Sequential
-from keras.layers.core import Dense, Activation
-from keras.initializations import normal, identity
-from keras.layers.recurrent import SimpleRNN, LSTM
+from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import RMSprop
 from keras.utils import np_utils
 
@@ -33,7 +32,7 @@ def im2Window(image,wSize):
     ydim    = image.shape[0] - wSize + 1
     #numWins = xdim*ydim
     output  = []
-    [ output.append(np.ndarray.flatten(image[y:y+wSize,x:x+wSize]))  for y in range(0,ydim) for x in range(0,xdim)]
+    [ output.append(image[y:y+wSize,x:x+wSize])  for y in range(0,ydim) for x in range(0,xdim)]
     return np.array(output)
 
 batch_size      = 32
@@ -41,7 +40,7 @@ nb_classes      = 10
 nb_epochs       = 2
 hidden_units    = 100
 repSize         = 20
-wSize           = 10
+wSize           = 15
 
 learning_rate   = 1e-6
 clip_norm       = 1.0
@@ -63,18 +62,21 @@ del X_train_raw
 del X_test_raw
 
 Xtrain2 = []
+ytrain  = []
 Xtest2  = []
+ytest   = []
 for i in range(0,len(X_train)):
     for j in range(0,len(X_train[i])):
         Xtrain2.append(X_train[i][j])
+        ytrain.append(np.ndarray.flatten(X_train[i][j]))
         if i < len(X_test):
             Xtest2.append(X_test[i][j])
+            ytest.append(np.ndarray.flatten(X_test[i][j]))
         
-X_train     = Xtrain2
-X_test      = Xtest2
-X_train     = np.array(X_train)
-X_test      = np.array(X_test)
-
+X_train     = np.array(Xtrain2)
+X_test      = np.array(Xtest2)
+ytest       = np.array(ytest)
+ytrain      = np.array(ytrain)
 #X_train = X_train.reshape(X_train.shape[0], -1, 1)
 #X_test = X_test.reshape(X_test.shape[0], -1, 1)
 X_train = X_train.astype('float32')
@@ -94,27 +96,47 @@ outshape    = X_train.shape[1]
 
 print('Evaluate IRNN...')
 model = Sequential()
-model.add(Dense(hidden_units,input_shape=inshape))
+
+
+model.add(Convolution2D(8,4, 4, input_shape=(1, wSize, wSize))) 
 model.add(Activation('relu'))
+
+model.add(Convolution2D(16, 4, 4)) 
+model.add(Activation('relu'))
+
+model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(Dropout(0.25))
+
+model.add(Flatten())
 model.add(Dense(repSize))
 model.add(Activation('relu'))
-model.add(Dense(outshape))
+model.add(Dropout(0.2))
+
+model.add(Dense(wSize**2, init='normal'))
 
 rmsprop = RMSprop(lr=learning_rate)
 model.compile(loss='mean_squared_error', optimizer=rmsprop)
 
-model.fit(X_train, X_train, batch_size=batch_size, nb_epoch=nb_epochs,
+model.fit(X_train, ytrain, batch_size=batch_size, nb_epoch=nb_epochs,
           show_accuracy=True, verbose=1, validation_data=(X_test, X_test))
 
-scores = model.evaluate(X_test, X_test, show_accuracy=True, verbose=0)
+scores = model.evaluate(X_test, ytest, show_accuracy=True, verbose=0)
 print('IRNN test score:', scores[0])
 print('IRNN test accuracy:', scores[1])
 
 del X_train
 
 model2 = Sequential()
-model2.add(Dense(hidden_units,input_shape=inshape))
+model2.add(Convolution2D(8,4, 4, input_shape=(1, wSize, wSize))) 
 model2.add(Activation('relu'))
+
+model2.add(Convolution2D(16, 4, 4)) 
+model2.add(Activation('relu'))
+
+model2.add(MaxPooling2D(pool_size=(2, 2)))
+model2.add(Dropout(0.25))
+
+model2.add(Flatten())
 model2.add(Dense(repSize))
 rmsprop = RMSprop(lr=learning_rate)
 model2.compile(loss='mean_squared_error', optimizer=rmsprop)
