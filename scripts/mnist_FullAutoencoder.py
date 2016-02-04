@@ -22,61 +22,36 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import RMSprop
-from keras.utils import np_utils
-
-import json
-
-
-def im2Window(image,wSize):
-    xdim    = image.shape[1] - wSize + 1
-    ydim    = image.shape[0] - wSize + 1
-    #numWins = xdim*ydim
-    output  = []
-    [ output.append(image[y:y+wSize,x:x+wSize])  for y in range(0,ydim) for x in range(0,xdim)]
-    return np.array(output)
+import scipy.misc as mi
 
 batch_size      = 32
 nb_classes      = 10
-nb_epochs       = 2
+nb_epochs       = 200
 hidden_units    = 100
 repSize         = 20
-wSize           = 15
+wSize           = 28
 
 learning_rate   = 1e-6
 clip_norm       = 1.0
 
 # the data, shuffled and split between train and test sets
-(X_train_raw, y_train), (X_test_raw, y_test) = mnist.load_data()
+(X_train, y_train), (X_test, y_test) = mnist.load_data()
 
-print("X_train_raw shape: ", X_train_raw.shape)
-print("X_test_raw shape: ", X_test_raw.shape)
+cutoff  = 10000
+X_train = X_train[0:cutoff,:,:]
+X_test  = X_test[0:cutoff,:,:]
+X_train = np.reshape(X_train,(X_train.shape[0],1,wSize,wSize))
+X_test  = np.reshape(X_test,(X_test.shape[0],1,wSize,wSize))
+
+
+
+ytrain  = np.array([np.ndarray.flatten(im[0]) for im in X_train])
+ytest   = np.array([np.ndarray.flatten(im[0]) for im in X_test])
+
 del y_train
 del y_test
 
-X_train  = []
-X_test   = []
-[X_train.append(im2Window(image,wSize)) for image in X_train_raw]
-[X_test.append(im2Window(image,wSize)) for image in X_test_raw]
 
-del X_train_raw
-del X_test_raw
-
-Xtrain2 = []
-ytrain  = []
-Xtest2  = []
-ytest   = []
-for i in range(0,len(X_train)):
-    for j in range(0,len(X_train[i])):
-        Xtrain2.append(X_train[i][j])
-        ytrain.append(np.ndarray.flatten(X_train[i][j]))
-        if i < len(X_test):
-            Xtest2.append(X_test[i][j])
-            ytest.append(np.ndarray.flatten(X_test[i][j]))
-        
-X_train     = np.array(Xtrain2)
-X_test      = np.array(Xtest2)
-ytest       = np.array(ytest)
-ytrain      = np.array(ytrain)
 #X_train = X_train.reshape(X_train.shape[0], -1, 1)
 #X_test = X_test.reshape(X_test.shape[0], -1, 1)
 X_train = X_train.astype('float32')
@@ -84,6 +59,8 @@ X_test = X_test.astype('float32')
 X_train /= 255
 X_test /= 255
 print('X_train shape:', X_train.shape)
+print('X_train shape:', X_test.shape)
+print('ytrain shape:', ytest.shape)
 print(X_train.shape[0], 'train samples')
 print(X_test.shape[0], 'test samples')
 
@@ -94,18 +71,22 @@ print(X_test.shape[0], 'test samples')
 inshape     = X_train.shape[1:]
 outshape    = X_train.shape[1]
 
-print('Evaluate IRNN...')
+
 model = Sequential()
 
 
-model.add(Convolution2D(8,4, 4, input_shape=(1, wSize, wSize))) 
+model.add(Convolution2D(8,4, 4, input_shape=(1,wSize, wSize))) 
 model.add(Activation('relu'))
 
 model.add(Convolution2D(16, 4, 4)) 
 model.add(Activation('relu'))
 
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
+
+model.add(Convolution2D(16, 4, 4)) 
+model.add(Activation('relu'))
+
+model.add(MaxPooling2D(pool_size=(2, 2)))
 
 model.add(Flatten())
 model.add(Dense(repSize))
@@ -118,13 +99,9 @@ rmsprop = RMSprop(lr=learning_rate)
 model.compile(loss='mean_squared_error', optimizer=rmsprop)
 
 model.fit(X_train, ytrain, batch_size=batch_size, nb_epoch=nb_epochs,
-          show_accuracy=True, verbose=1, validation_data=(X_test, X_test))
+          show_accuracy=True, verbose=1, validation_data=(X_test, ytest))
 
-scores = model.evaluate(X_test, ytest, show_accuracy=True, verbose=0)
-print('IRNN test score:', scores[0])
-print('IRNN test accuracy:', scores[1])
 
-del X_train
 
 model2 = Sequential()
 model2.add(Convolution2D(8,4, 4, input_shape=(1, wSize, wSize))) 
@@ -134,7 +111,11 @@ model2.add(Convolution2D(16, 4, 4))
 model2.add(Activation('relu'))
 
 model2.add(MaxPooling2D(pool_size=(2, 2)))
-model2.add(Dropout(0.25))
+
+model2.add(Convolution2D(16, 4, 4)) 
+model2.add(Activation('relu'))
+
+model2.add(MaxPooling2D(pool_size=(2, 2)))
 
 model2.add(Flatten())
 model2.add(Dense(repSize))
@@ -147,22 +128,11 @@ for layernum in range(0,len(model2.layers)):
 jsonstring  = model2.to_json()
 with open("../autoEncoder.json",'wb') as f:
     f.write(jsonstring)
-model2.save_weights("../autoEncoder.h5")
+model2.save_weights("../autoEncoder.h5",overwrite=True)
 
+del model2
 
-
-#
-#print('Compare to LSTM...')
-#model = Sequential()
-#model.add(LSTM(hidden_units, input_shape=X_train.shape[1:]))
-#model.add(Dense(nb_classes))
-#model.add(Activation('softmax'))
-#rmsprop = RMSprop(lr=learning_rate)
-#model.compile(loss='categorical_crossentropy', optimizer=rmsprop)
-#
-#model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epochs,
-#          show_accuracy=True, verbose=1, validation_data=(X_test, Y_test))
-#
-#scores = model.evaluate(X_test, Y_test, show_accuracy=True, verbose=0)
-#print('LSTM test score:', scores[0])
-#print('LSTM test accuracy:', scores[1])
+for num, pred in enumerate(model.predict(X_test)):
+    print(pred.shape)
+    mi.imsave("before.jpg",X_test[num][0][:,:])
+    mi.imsave("after.jpg",np.reshape(pred,(28,28)))

@@ -42,15 +42,23 @@ def autoEncode(image,wSize,model):
     ydim    = image.shape[0] - wSize + 1
     #numWins = xdim*ydim
     output  = []
-    [ output.append(model.predict(np.ndarray.flatten(image[y:y+wSize,x:x+wSize])))  for y in range(0,ydim) for x in range(0,xdim)]
+    #print(image[0:0+wSize,0:0+wSize])
+    #temp    = np.reshape(np.ndarray.flatten(image[0:0+wSize,0:0+wSize]),(1,wSize**2))
+    
+    #print(model.predict(temp))
+    #print("I did it")
+    [ output.append(model.predict(np.reshape(np.ndarray.flatten(image[y:y+wSize,x:x+wSize]),(1,wSize**2)))[0])  for y in range(0,ydim) for x in range(0,xdim)]
     return np.array(output)
     
 def loadThatModel(folder):
-    with open(folder+"my_model_architecture.json",'rb') as f:
+    with open(folder+".json",'rb') as f:
         #json_string     = json.load(f)
         json_string     = f.read()
     model = model_from_json(json_string)
-    model.load_weights(folder+"my_model_weights.h5")
+    model.load_weights(folder+".h5")
+    for i in range(0,len(model.layers)):
+        print(model.get_weights()[i].shape,end="")
+        print(" "+str(i))
     return model
 
 batch_size      = 32
@@ -65,27 +73,33 @@ clip_norm       = 1.0
 # the data, shuffled and split between train and test sets
 (X_train_raw, y_train), (X_test_raw, y_test) = mnist.load_data()
 
-cutoff          = 1000
+cutoff          = 10
 X_train_raw     = X_train_raw[:cutoff]
 X_test_raw      = X_test_raw[:cutoff]
+X_train_raw     = X_train_raw.astype('float32')
+X_test_raw      = X_test_raw.astype('float32')
+X_train_raw     /= 255
+X_test_raw      /= 255
+
 y_train         = y_train[:cutoff]
 y_test          = y_test[:cutoff]
 
+autoencoder     = loadThatModel("../models/autoEncoder")
 
 
 X_train  = []
 X_test   = []
-[X_train.append(im2Window(image,wSize)) for image in X_train_raw]
-[X_test.append(im2Window(image,wSize)) for image in X_test_raw]
+[X_train.append(autoEncode(image,wSize,autoencoder)) for image in X_train_raw]
+[X_test.append(autoEncode(image,wSize,autoencoder)) for image in X_test_raw]
 X_train     = np.array(X_train)
 X_test      = np.array(X_test)
 
 #X_train = X_train.reshape(X_train.shape[0], -1, 1)
 #X_test = X_test.reshape(X_test.shape[0], -1, 1)
-X_train = X_train.astype('float32')
-X_test = X_test.astype('float32')
-X_train /= 255
-X_test /= 255
+#X_train = X_train.astype('float32')
+#X_test = X_test.astype('float32')
+#X_train /= 255
+#X_test /= 255
 print('X_train shape:', X_train.shape)
 print(X_train.shape[0], 'train samples')
 print(X_test.shape[0], 'test samples')
@@ -95,8 +109,9 @@ Y_train = np_utils.to_categorical(y_train, nb_classes)
 Y_test = np_utils.to_categorical(y_test, nb_classes)
 
 
+del autoencoder
 
-autoencoder     = loadThatModel("../")
+
 
 
 print('Evaluate IRNN...')
