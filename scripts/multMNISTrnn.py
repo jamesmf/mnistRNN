@@ -140,7 +140,7 @@ for ep in range(0,nb_epochs):
         #print(example.shape, exampleY)
         output[0:numToAdd,:] = example
         X_train[i,:,:] = output
-        y_train.append(np.sum(exampleY))
+        y_train.append(np.prod(exampleY))
     
     
     X_train     = np.array(X_train)

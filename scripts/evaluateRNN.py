@@ -23,6 +23,7 @@ from keras.layers.core import Dense, Activation, Dropout
 #from keras.initializations import normal, identity
 from keras.layers.recurrent import SimpleRNN, LSTM, GRU
 from keras.optimizers import RMSprop, Adadelta
+import scipy.misc as mi
 #from keras.utils import np_utils
 
 from keras.models import model_from_json
@@ -91,7 +92,7 @@ X_test_raw      /= 255
 
 #load our autoencoder, trained previously
 autoencoder     = loadThatModel("../models/autoEncoder")
-
+model           = loadThatModel("../models/basicRNN")
 #autoencode our images to vectors
 X_train_vecs  = autoencode(X_train_raw,autoencoder)
 X_test_vecs   = autoencode(X_test_raw,autoencoder)
@@ -104,57 +105,11 @@ print(X_train_vecs.shape[0], 'train samples')
 print(X_test_vecs.shape[0], 'test samples')
 
 
-#define our RNN setup
-model = Sequential()
-
-model.add(GRU(output_dim=hidden_units,input_shape = (maxToAdd,len(X_train_vecs[0]))))
-model.add(Dense(100))
-model.add(Dropout(.25))
-model.add(Dense(1))
-model.add(Activation('relu'))
-
-optimizer   = Adadelta()
-model.compile(loss='mean_squared_error', optimizer=optimizer)
-
-
-
-
-
 #run epochs of sampling data then training
-for ep in range(0,nb_epochs):
-    X_train       = []
-    y_train       = []
-    X_test        = []
-    y_test        = []    
-    
-    X_train     = np.zeros((examplesPer,maxToAdd,len(X_train_vecs[0])))
-    for i in range(0,examplesPer):
-        output      = np.zeros((maxToAdd,len(X_train_vecs[0])))
-        #print(output.shape)
-        numToAdd    = np.ceil(np.random.rand()*maxToAdd)
-        indices     = np.random.choice(X_train_vecs.shape[0],size=numToAdd)
-        #print(indices)
-        example     = X_train_vecs[indices]
-        #print("example shape: ", example.shape)
-        exampleY    = y_train_temp[indices]
-        #print(example.shape, exampleY)
-        output[0:numToAdd,:] = example
-        X_train[i,:,:] = output
-        y_train.append(np.sum(exampleY))
-    
-    
-    X_train     = np.array(X_train)
-    y_train     = np.array(y_train)
-    
-    
- 
-    
-    
-    model.fit(X_train, y_train, batch_size=batch_size, nb_epoch=1,
-              verbose=1)
 
-
+y_test     = []    
 X_test     = np.zeros((examplesPer,maxToAdd,len(X_test_vecs[0])))
+inds       = []
 for i in range(0,examplesPer):
     output      = np.zeros((maxToAdd,len(X_test_vecs[0])))
     #print(output.shape)
@@ -168,25 +123,30 @@ for i in range(0,examplesPer):
     output[0:numToAdd,:] = example
     X_test[i,:,:] = output
     y_test.append(np.sum(exampleY))
+    inds.append(indices)
 
 X_test  = np.array(X_test)
 y_test  = np.array(y_test)       
 
 preds   = model.predict(X_test)
-
-#for num, ans in enumerate(y_test):
-#    print("predicted: ", preds[num], "actual: ", ans)
+#print(preds[:10])
+for num, ans in enumerate(y_test):
     
-print(np.sum(np.sqrt(np.mean([ (y_test[i] - preds[i][0])**2 for i in range(0,len(preds)) ]))))
-print("naive guess", np.sum(np.sqrt(np.mean([ (y_test[i] - np.mean(y_test))**2 for i in range(0,len(y_test)) ]))))
-
-
-
-
-
-
-jsonstring  = model.to_json()
-with open("../models/basicRNN.json",'wb') as f:
-    f.write(jsonstring)
-model.save_weights("../models/basicRNN.h5",overwrite=True)
+    images  = np.zeros((maxToAdd,28,28))
+    xtr     = X_test_raw[inds[num]]
+    images[0:xtr.shape[0],:,:] = xtr
+    for num2, image in enumerate(images):    
+        mi.imsave("../image"+str(num2)+".jpg",image)
+    print(ans, preds[num])
+    for num3 in range(0,5):
+        print(num, num2, num3)
+        output      = np.zeros((maxToAdd,len(X_test_vecs[0])))
+        example     = X_test[num][0:num3+1]
+        #print(example)
+        #print(output.shape, example.shape, num3)
+        output[0:num3+1,:] = example
+        output  = np.reshape(output,(1,output.shape[0],output.shape[1]))
+        tempPred    = model.predict(output)
+        print("with ",num3," images: ",tempPred)
+    stop=raw_input("")
 
