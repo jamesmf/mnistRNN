@@ -15,7 +15,6 @@ import scipy.misc as mi
 batch_size      = 32
 nb_classes      = 10
 nb_epochs       = 50
-hidden_units    = 100
 repSize         = 200
 wSize           = 28
 

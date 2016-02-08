@@ -67,7 +67,7 @@ batch_size      = 32
 nb_epochs       = 100
 examplesPer     = 60000
 maxToAdd        = 5
-hidden_units    = 150
+hidden_units    = 200
 
 #cutoff          = 1000
 
@@ -109,7 +109,7 @@ model = Sequential()
 
 model.add(GRU(output_dim=hidden_units,input_shape = (maxToAdd,len(X_train_vecs[0]))))
 model.add(Dense(100))
-model.add(Dropout(.25))
+model.add(Dropout(.2))
 model.add(Dense(1))
 model.add(Activation('relu'))
 
